@@ -1,0 +1,11 @@
+[package]
+name = "simple_rustc_tokenizer"
+version = "0.1.0"
+authors = ["Ilya Sheprut <optitel223@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+peg = "0.6.2"
+rustc_lexer = "=0.1.0"
