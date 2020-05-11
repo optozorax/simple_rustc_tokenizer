@@ -90,6 +90,17 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 		.map(|(pos, token_kind, len)| {
 			let range = pos..pos+len;
 			let current_text = &string[range.clone()];
+
+			macro_rules! terminated_or {
+				($terminated:ident, $($x:tt)*) => {
+					if !$terminated {
+						Err(Error { range, kind: ErrorKind::StringNotTerminated })
+					} else {
+						$($x)*
+					}
+				};
+			}
+			
 			match token_kind {
 				Ident => Ok(Token::Ident(current_text)),
 				RawIdent => Ok(Token::RawIdent(&current_text[2..])),
@@ -97,9 +108,8 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 
 				LineComment => Ok(Token::LineComment(&string[pos+2..pos+len])),
 				BlockComment { terminated } => {
-					if !terminated {
-						Err(Error { range, kind: ErrorKind::StringNotTerminated })
-					} else {
+					terminated_or! {
+						terminated,
 						Ok(Token::BlockComment(&string[pos+2..pos+len-2]))
 					}
 				},
@@ -107,16 +117,6 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 				Literal { kind, suffix_start } => {
 					let text_before_suffix = &string[pos..pos+suffix_start];
 					let text_after_suffix = &string[pos+suffix_start..pos+len];
-
-					macro_rules! terminated_or {
-						($terminated:ident, $($x:tt)*) => {
-							if !$terminated {
-								Err(Error { range, kind: ErrorKind::StringNotTerminated })
-							} else {
-								$($x)*
-							}
-						};
-					}
 
 					macro_rules! process_str {
 						($range:expr, $container:ident, $method:ident, $constructor:ident) => {
