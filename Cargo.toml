@@ -1,6 +1,6 @@
 [package]
 name = "simple_rustc_tokenizer"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Ilya Sheprut <optitel223@gmail.com>"]
 edition = "2018"
 
@@ -8,6 +8,4 @@ edition = "2018"
 
 [dependencies]
 rustc_lexer = "=0.1.0"
-
-[dev-dependencies]
 peg = "0.6.2"

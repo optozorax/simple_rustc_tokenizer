@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+pub mod peg;
+
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Token<'a> {
 	// Idents
@@ -75,7 +77,12 @@ pub enum ErrorKind {
 	StringEscapeErrors(Vec<EscapeError>),
 }
 
-pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
+pub struct TokenWithPos<'a> {
+	pub token: Token<'a>,
+	pub range: Range<usize>,
+}
+
+pub fn tokenize(string: &str) -> Result<Vec<TokenWithPos>, Error> {
 	use rustc_lexer::unescape;
 	use rustc_lexer::TokenKind::*;
 	use rustc_lexer::LiteralKind::*;
@@ -100,17 +107,23 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 					}
 				};
 			}
+
+			macro_rules! ok {
+				($result:expr) => {
+					Ok(TokenWithPos { token: $result, range: pos..pos+len })
+				};
+			}
 			
 			match token_kind {
-				Ident => Ok(Token::Ident(current_text)),
-				RawIdent => Ok(Token::RawIdent(&current_text[2..])),
-				Lifetime { .. } => Ok(Token::Lifetime(&current_text[1..])),
+				Ident => ok!(Token::Ident(current_text)),
+				RawIdent => ok!(Token::RawIdent(&current_text[2..])),
+				Lifetime { .. } => ok!(Token::Lifetime(&current_text[1..])),
 
-				LineComment => Ok(Token::LineComment(&string[pos+2..pos+len])),
+				LineComment => ok!(Token::LineComment(&string[pos+2..pos+len])),
 				BlockComment { terminated } => {
 					terminated_or! {
 						terminated,
-						Ok(Token::BlockComment(&string[pos+2..pos+len-2]))
+						ok!(Token::BlockComment(&string[pos+2..pos+len-2]))
 					}
 				},
 
@@ -130,7 +143,7 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 								}
 							});
 							if errors.is_empty() {
-								Ok(Token::$constructor(result))	
+								ok!(Token::$constructor(result))	
 							} else {
 								Err(Error { range, kind: ErrorKind::StringEscapeErrors(errors) })
 							}
@@ -152,7 +165,7 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 									}
 								});
 								if errors.is_empty() {
-									Ok(Token::$constructor(result))	
+									ok!(Token::$constructor(result))	
 								} else {
 									Err(Error { range, kind: ErrorKind::StringEscapeErrors(errors) })
 								}
@@ -166,7 +179,7 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 								Err(Error { range, kind: ErrorKind::SuffixNotSupported })
 							} else {
 								match text_before_suffix.parse() {
-									Ok(val) => Ok(Token::$constructor(val)),
+									Ok(val) => ok!(Token::$constructor(val)),
 									Err(_) => Err(Error { range, kind: ErrorKind::NumParseError }),
 								}
 							}
@@ -180,7 +193,7 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 							} else {
 								let range = $range;
 								match unescape::$method(&string[range.clone()]) {
-									Ok(val) => Ok(Token::$constructor(val)),
+									Ok(val) => ok!(Token::$constructor(val)),
 									Err((_, kind)) => Err(Error { 
 										range: range.clone(), 
 										kind: ErrorKind::CharEscapeError(EscapeError { range, kind } ) 
@@ -262,34 +275,34 @@ pub fn tokenize(string: &str) -> Result<Vec<Token>, Error> {
 					}
 				},
 				
-				Whitespace => Ok(Token::Whitespace),
-				Semi => Ok(Token::Semi),
-				Comma => Ok(Token::Comma),
-				Dot => Ok(Token::Dot),
-				OpenParen => Ok(Token::OpenParen),
-				CloseParen => Ok(Token::CloseParen),
-				OpenBrace => Ok(Token::OpenBrace),
-				CloseBrace => Ok(Token::CloseBrace),
-				OpenBracket => Ok(Token::OpenBracket),
-				CloseBracket => Ok(Token::CloseBracket),
-				At => Ok(Token::At),
-				Pound => Ok(Token::Pound),
-				Tilde => Ok(Token::Tilde),
-				Question => Ok(Token::Question),
-				Colon => Ok(Token::Colon),
-				Dollar => Ok(Token::Dollar),
-				Eq => Ok(Token::Eq),
-				Not => Ok(Token::Not),
-				Lt => Ok(Token::Lt),
-				Gt => Ok(Token::Gt),
-				Minus => Ok(Token::Minus),
-				And => Ok(Token::And),
-				Or => Ok(Token::Or),
-				Plus => Ok(Token::Plus),
-				Star => Ok(Token::Star),
-				Slash => Ok(Token::Slash),
-				Caret => Ok(Token::Caret),
-				Percent => Ok(Token::Percent),
+				Whitespace => ok!(Token::Whitespace),
+				Semi => ok!(Token::Semi),
+				Comma => ok!(Token::Comma),
+				Dot => ok!(Token::Dot),
+				OpenParen => ok!(Token::OpenParen),
+				CloseParen => ok!(Token::CloseParen),
+				OpenBrace => ok!(Token::OpenBrace),
+				CloseBrace => ok!(Token::CloseBrace),
+				OpenBracket => ok!(Token::OpenBracket),
+				CloseBracket => ok!(Token::CloseBracket),
+				At => ok!(Token::At),
+				Pound => ok!(Token::Pound),
+				Tilde => ok!(Token::Tilde),
+				Question => ok!(Token::Question),
+				Colon => ok!(Token::Colon),
+				Dollar => ok!(Token::Dollar),
+				Eq => ok!(Token::Eq),
+				Not => ok!(Token::Not),
+				Lt => ok!(Token::Lt),
+				Gt => ok!(Token::Gt),
+				Minus => ok!(Token::Minus),
+				And => ok!(Token::And),
+				Or => ok!(Token::Or),
+				Plus => ok!(Token::Plus),
+				Star => ok!(Token::Star),
+				Slash => ok!(Token::Slash),
+				Caret => ok!(Token::Caret),
+				Percent => ok!(Token::Percent),
 				Unknown => Err(Error { range, kind: UnknownToken }),
 			}
 		})
@@ -452,7 +465,9 @@ mod tests {
 		_
 		"###;
 		use Token::*;
-		assert_eq!(tokenize(string), Ok(vec![
+		let tokens_with_pos = tokenize(string).unwrap();
+		let tokens = tokens_with_pos.into_iter().map(|x| x.token).collect::<Vec<_>>();
+		assert_eq!(tokens, vec![
 			Whitespace, Ident("ident"),
 			Whitespace, Ident("идент"),
 			Whitespace, RawIdent("rawident"),
@@ -501,20 +516,21 @@ mod tests {
 			Whitespace, Percent,
 			Whitespace, Ident("_"),
 			Whitespace,
-		]));
+		]);
 	}
 
 	#[test]
 	fn simple() {
 		use Token::*;
 		let string = r#"ident  = "string\n\u{55}";"#;
-		assert_eq!(tokenize(string), Ok(vec![
-			Ident("ident"),
-			Whitespace, 
-			Eq,
-			Whitespace, 
-			UnescapedString("string\n\u{55}".to_string()),
-			Semi,
-		]));
+		let tokens_with_pos = tokenize(string).unwrap().into_iter().map(|x| (x.range, x.token)).collect::<Vec<_>>();
+		assert_eq!(tokens_with_pos, vec![
+			(0..5, Ident("ident")),
+			(5..7, Whitespace), 
+			(7..8, Eq),
+			(8..9, Whitespace), 
+			(9..25, UnescapedString("string\n\u{55}".to_string())),
+			(25..26, Semi),
+		]);
 	}
 }
