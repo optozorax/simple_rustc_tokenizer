@@ -77,6 +77,7 @@ pub enum ErrorKind {
 	StringEscapeErrors(Vec<EscapeError>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct TokenWithPos<'a> {
 	pub token: Token<'a>,
 	pub range: Range<usize>,
@@ -523,14 +524,13 @@ mod tests {
 	fn simple() {
 		use Token::*;
 		let string = r#"ident  = "string\n\u{55}";"#;
-		let tokens_with_pos = tokenize(string).unwrap().into_iter().map(|x| (x.range, x.token)).collect::<Vec<_>>();
-		assert_eq!(tokens_with_pos, vec![
-			(0..5, Ident("ident")),
-			(5..7, Whitespace), 
-			(7..8, Eq),
-			(8..9, Whitespace), 
-			(9..25, UnescapedString("string\n\u{55}".to_string())),
-			(25..26, Semi),
-		]);
+		assert_eq!(tokenize(string), Ok(vec![
+			TokenWithPos { range: 0..5, token: Ident("ident") },
+			TokenWithPos { range: 5..7, token: Whitespace },
+			TokenWithPos { range: 7..8, token: Eq },
+			TokenWithPos { range: 8..9, token: Whitespace },
+			TokenWithPos { range: 9..25, token: UnescapedString("string\n\u{55}".to_string()) },
+			TokenWithPos { range: 25..26, token: Semi },
+		]));
 	}
 }
